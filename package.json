@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "concurrently": "^9.2.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm run client\" \"pnpm run server\"",
+    "client": "cd client && pnpm run dev",
+    "server": "cd server && nodemon server.js"
+  }
+}

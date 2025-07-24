@@ -2,7 +2,7 @@
   "name": "client",
   "private": true,
   "version": "0.0.0",
-  "proxy": "http://localhost:5000",
+  "proxy": "http://localhost:5001S",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
