@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import TaskForm from "./components/TaskForm";
 import TaskList from "./components/TaskList";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // API base URL - direct connection for Vite
 const API_URL = "http://localhost:5001/api/tasks";
@@ -25,16 +26,19 @@ function App() {
       const response = await axios.get(API_URL);
 
       // Ensure we always set an array
-      const tasksData = Array.isArray(response.data) ? response.data : [];
-      setTasks(tasksData);
-
-      console.log("Fetched tasks:", tasksData);
+      if (Array.isArray(response.data)) {
+        setTasks(response.data);
+      } else {
+        console.warn("API returned non-array data:", response.data);
+        setTasks([]);
+        setError("Invalid data format received from server");
+      }
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      setTasks([]); // Ensure tasks is always an array
       setError(
         "Failed to fetch tasks. Make sure the backend server is running."
       );
-      setTasks([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -46,11 +50,12 @@ function App() {
       setError("");
       const response = await axios.post(API_URL, taskData);
 
-      // Ensure tasks is always an array before spreading
-      const currentTasks = Array.isArray(tasks) ? tasks : [];
-      setTasks([response.data, ...currentTasks]);
-
-      console.log("Added task:", response.data);
+      // Ensure we're working with arrays
+      if (Array.isArray(tasks)) {
+        setTasks([response.data, ...tasks]);
+      } else {
+        setTasks([response.data]);
+      }
     } catch (error) {
       console.error("Error adding task:", error);
       setError("Failed to add task. Please try again.");
@@ -63,14 +68,11 @@ function App() {
       setError("");
       const response = await axios.put(`${API_URL}/${id}`, taskData);
 
-      // Ensure tasks is always an array before mapping
-      const currentTasks = Array.isArray(tasks) ? tasks : [];
-      setTasks(
-        currentTasks.map((task) => (task._id === id ? response.data : task))
-      );
+      // Ensure we're working with arrays
+      if (Array.isArray(tasks)) {
+        setTasks(tasks.map((task) => (task._id === id ? response.data : task)));
+      }
       setEditingTask(null);
-
-      console.log("Updated task:", response.data);
     } catch (error) {
       console.error("Error updating task:", error);
       setError("Failed to update task. Please try again.");
@@ -84,11 +86,10 @@ function App() {
         setError("");
         await axios.delete(`${API_URL}/${id}`);
 
-        // Ensure tasks is always an array before filtering
-        const currentTasks = Array.isArray(tasks) ? tasks : [];
-        setTasks(currentTasks.filter((task) => task._id !== id));
-
-        console.log("Deleted task with id:", id);
+        // Ensure we're working with arrays
+        if (Array.isArray(tasks)) {
+          setTasks(tasks.filter((task) => task._id !== id));
+        }
       } catch (error) {
         console.error("Error deleting task:", error);
         setError("Failed to delete task. Please try again.");
@@ -104,13 +105,10 @@ function App() {
         completed: !completed,
       });
 
-      // Ensure tasks is always an array before mapping
-      const currentTasks = Array.isArray(tasks) ? tasks : [];
-      setTasks(
-        currentTasks.map((task) => (task._id === id ? response.data : task))
-      );
-
-      console.log("Toggled completion for task:", response.data);
+      // Ensure we're working with arrays
+      if (Array.isArray(tasks)) {
+        setTasks(tasks.map((task) => (task._id === id ? response.data : task)));
+      }
     } catch (error) {
       console.error("Error updating task:", error);
       setError("Failed to update task status. Please try again.");
@@ -156,26 +154,14 @@ function App() {
                 </div>
               </div>
             ) : (
-              <>
-                {/* Debug Info - Remove this once everything works */}
-                <div className="mb-4 p-4 bg-gray-100 rounded-lg">
-                  <h3 className="font-semibold mb-2">Debug Info:</h3>
-                  <pre className="text-sm">
-                    Tasks type: {typeof tasks}
-                    {"\n"}Tasks is array: {Array.isArray(tasks) ? "Yes" : "No"}
-                    {"\n"}Tasks length:{" "}
-                    {Array.isArray(tasks) ? tasks.length : "N/A"}
-                    {"\n"}Tasks content: {JSON.stringify(tasks, null, 2)}
-                  </pre>
-                </div>
-
+              <ErrorBoundary>
                 <TaskList
                   tasks={Array.isArray(tasks) ? tasks : []}
                   onEdit={setEditingTask}
                   onDelete={deleteTask}
                   onToggleComplete={toggleComplete}
                 />
-              </>
+              </ErrorBoundary>
             )}
           </div>
         </div>

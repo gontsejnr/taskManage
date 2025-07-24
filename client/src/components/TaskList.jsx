@@ -1,36 +1,115 @@
 import React, { useState } from "react";
-import TaskItem from "./TaskItem";
 
-const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
-  const [filter, setFilter] = useState("all"); // all, completed, pending
-  const [sortBy, setSortBy] = useState("priority"); // priority, deadline, created
+// Temporary TaskItem component to isolate the issue
+const TaskItem = ({ task, index, onEdit, onDelete, onToggleComplete }) => {
+  console.log("TaskItem received props:", { task, index });
+
+  if (!task) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded">
+        Task is null/undefined
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 border border-gray-200 rounded-lg">
+      <h3 className="font-medium">{task.title || "No title"}</h3>
+      <p className="text-gray-600">{task.description || "No description"}</p>
+      <div className="mt-2 flex items-center justify-between">
+        <span
+          className={`px-2 py-1 rounded-full text-xs ${
+            task.priority === "High"
+              ? "bg-red-100 text-red-800"
+              : task.priority === "Medium"
+              ? "bg-yellow-100 text-yellow-800"
+              : "bg-green-100 text-green-800"
+          }`}
+        >
+          {task.priority || "No priority"}
+        </span>
+        <div className="space-x-2">
+          <button
+            onClick={() =>
+              onToggleComplete && onToggleComplete(task._id || task.id)
+            }
+            className={`px-3 py-1 rounded text-xs ${
+              task.completed
+                ? "bg-green-500 text-white"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            {task.completed ? "Completed" : "Pending"}
+          </button>
+          <button
+            onClick={() => onEdit && onEdit(task)}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-xs"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onDelete && onDelete(task._id || task.id)}
+            className="px-3 py-1 bg-red-500 text-white rounded text-xs"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TaskList = ({ tasks = [], onEdit, onDelete, onToggleComplete }) => {
+  console.log("TaskList received props:", {
+    tasks,
+    tasksType: typeof tasks,
+    isArray: Array.isArray(tasks),
+    tasksLength: Array.isArray(tasks) ? tasks.length : "not array",
+  });
+
+  const [filter, setFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("priority");
 
   // Filter tasks based on completion status
   const getFilteredTasks = () => {
-    // Ensure tasks is always an array
+    console.log("getFilteredTasks called with tasks:", tasks);
+
+    // Ensure tasks is an array before using spread operator
     if (!Array.isArray(tasks)) {
-      console.warn("Tasks is not an array:", tasks);
+      console.warn("Tasks is not an array in getFilteredTasks:", tasks);
       return [];
     }
+
+    // Now it's safe to spread the array
     let filtered = [...tasks];
 
     switch (filter) {
       case "completed":
-        filtered = filtered.filter((task) => task.completed);
+        filtered = filtered.filter((task) => task && task.completed);
         break;
       case "pending":
-        filtered = filtered.filter((task) => !task.completed);
+        filtered = filtered.filter((task) => task && !task.completed);
         break;
       default:
         break;
     }
 
+    console.log("Filtered tasks:", filtered);
     return filtered;
   };
 
   // Sort tasks based on selected criteria
   const getSortedTasks = (filteredTasks) => {
+    console.log("getSortedTasks called with:", filteredTasks);
+
+    if (!Array.isArray(filteredTasks)) {
+      console.warn("filteredTasks is not an array:", filteredTasks);
+      return [];
+    }
+
     return filteredTasks.sort((a, b) => {
+      if (!a || !b) return 0;
+
       // Always put completed tasks at the bottom
       if (a.completed !== b.completed) {
         return a.completed - b.completed;
@@ -39,14 +118,26 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
       switch (sortBy) {
         case "priority": {
           const priorityOrder = { High: 3, Medium: 2, Low: 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
+          return (
+            (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+          );
         }
 
-        case "deadline":
-          return new Date(a.deadline) - new Date(b.deadline);
+        case "deadline": {
+          const aDate = new Date(a.deadline);
+          const bDate = new Date(b.deadline);
+          if (isNaN(aDate.getTime())) return 1;
+          if (isNaN(bDate.getTime())) return -1;
+          return aDate - bDate;
+        }
 
-        case "created":
-          return new Date(b.createdAt) - new Date(a.createdAt);
+        case "created": {
+          const aDate = new Date(a.createdAt);
+          const bDate = new Date(b.createdAt);
+          if (isNaN(aDate.getTime())) return 1;
+          if (isNaN(bDate.getTime())) return -1;
+          return bDate - aDate;
+        }
 
         default:
           return 0;
@@ -58,19 +149,31 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
   const sortedTasks = getSortedTasks(filteredTasks);
 
   // Get task statistics
-  const totalTasks = Array.isArray(tasks) ? tasks.length : 0;
-  const completedTasks = Array.isArray(tasks)
-    ? tasks.filter((task) => task.completed).length
-    : 0;
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const totalTasks = safeTasks.length;
+  const completedTasks = safeTasks.filter(
+    (task) => task && task.completed
+  ).length;
   const pendingTasks = totalTasks - completedTasks;
-  const overdueTasks = Array.isArray(tasks)
-    ? tasks.filter(
-        (task) => !task.completed && new Date(task.deadline) < new Date()
-      ).length
-    : 0;
+  const overdueTasks = safeTasks.filter((task) => {
+    if (!task || !task.deadline) return false;
+    const deadline = new Date(task.deadline);
+    return (
+      !task.completed && !isNaN(deadline.getTime()) && deadline < new Date()
+    );
+  }).length;
 
   return (
     <div className="bg-white rounded-lg shadow-md">
+      {/* Debug Info */}
+      <div className="p-4 bg-yellow-50 border-b border-yellow-200">
+        <div className="text-sm text-yellow-800">
+          <strong>Debug Info:</strong> tasks type: {typeof tasks}, isArray:{" "}
+          {Array.isArray(tasks).toString()}, length:{" "}
+          {Array.isArray(tasks) ? tasks.length : "N/A"}
+        </div>
+      </div>
+
       {/* Header with Statistics */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
@@ -96,22 +199,6 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
             )}
           </div>
         </div>
-
-        {/* Progress Bar */}
-        {totalTasks > 0 && (
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{Math.round((completedTasks / totalTasks) * 100)}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${(completedTasks / totalTasks) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
 
         {/* Filters and Sorting */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
@@ -168,25 +255,16 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
       {/* Task List */}
       <div className="p-6">
         {totalTasks === 0 ? (
-          // Empty state
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📝</div>
             <h3 className="text-xl font-medium text-gray-900 mb-2">
               No tasks yet
             </h3>
             <p className="text-gray-600 mb-6">
-              Create your first task to get started with managing your to-do
-              list!
+              Create your first task to get started!
             </p>
-            <div className="bg-blue-50 rounded-lg p-4 max-w-md mx-auto">
-              <p className="text-sm text-blue-800">
-                💡 <strong>Tip:</strong> Use the form on the left to add a new
-                task with a title, description, priority level, and deadline.
-              </p>
-            </div>
           </div>
         ) : filteredTasks.length === 0 ? (
-          // No filtered results
           <div className="text-center py-8">
             <div className="text-4xl mb-4">🔍</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -197,11 +275,10 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
             </p>
           </div>
         ) : (
-          // Task list
           <div className="space-y-3">
             {sortedTasks.map((task, index) => (
               <TaskItem
-                key={task._id}
+                key={task?._id || task?.id || index}
                 task={task}
                 index={index}
                 onEdit={onEdit}
@@ -212,22 +289,6 @@ const TaskList = ({ tasks, onEdit, onDelete, onToggleComplete }) => {
           </div>
         )}
       </div>
-
-      {/* Footer with helpful info */}
-      {totalTasks > 0 && (
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <div>
-              Showing {filteredTasks.length} of {totalTasks} tasks
-            </div>
-            <div className="flex items-center space-x-4">
-              <span>🔴 High Priority</span>
-              <span>🟡 Medium Priority</span>
-              <span>🟢 Low Priority</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
