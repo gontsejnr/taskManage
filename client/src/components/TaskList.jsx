@@ -165,14 +165,14 @@ const TaskList = ({ tasks = [], onEdit, onDelete, onToggleComplete }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md">
-      {/* Debug Info */}
+      {/* Debug Info
       <div className="p-4 bg-yellow-50 border-b border-yellow-200">
         <div className="text-sm text-yellow-800">
           <strong>Debug Info:</strong> tasks type: {typeof tasks}, isArray:{" "}
           {Array.isArray(tasks).toString()}, length:{" "}
           {Array.isArray(tasks) ? tasks.length : "N/A"}
         </div>
-      </div>
+      </div> */}
 
       {/* Header with Statistics */}
       <div className="p-6 border-b border-gray-200">

@@ -121,7 +121,7 @@ function App() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Task Manager
+            Manage Your Tasks
           </h1>
           <p className="text-gray-600">Stay organized and get things done!</p>
         </div>
@@ -168,7 +168,7 @@ function App() {
 
         {/* Footer */}
         <div className="text-center mt-12 text-gray-500 text-sm">
-          <p>Built with React, Node.js, Express, and MongoDB</p>
+          <p>Built with MERN Stack. ©Gontse Maepa 2025</p>
         </div>
       </div>
     </div>
