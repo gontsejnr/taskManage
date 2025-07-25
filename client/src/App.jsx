@@ -5,7 +5,8 @@ import TaskList from "./components/TaskList";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // API base URL - direct connection for Vite
-const API_URL = "http://localhost:5001/api/tasks";
+const API_URL =
+  import.meta.env.REACT_APP_API_URL || "http://localhost:5001/api/tasks";
 
 function App() {
   const [tasks, setTasks] = useState([]);
