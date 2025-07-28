@@ -8,6 +8,9 @@ require("dotenv").config();
 
 const app = express();
 
+// TRUST PROXY CONFIGURATION - MUST BE FIRST
+app.set("trust proxy", 1); // Trust first proxy (Render)
+
 const PORT = process.env.PORT || 5001;
 
 // Validate that PORT is a number
@@ -25,7 +28,7 @@ app.use(
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Increased from 100 to 200 requests per windowMs
+  max: 200,
   message: {
     message: "Too many requests from this IP. Please try again later.",
   },
@@ -34,49 +37,25 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Auth rate limiting - more lenient for development
+// Auth rate limiting
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 20 : 100, // Increased limits
+  max: process.env.NODE_ENV === "production" ? 20 : 100,
   message: {
     message: "Too many authentication attempts. Please try again later.",
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    if (
-      process.env.NODE_ENV !== "production" &&
-      (req.ip === "127.0.0.1" ||
-        req.ip === "::1" ||
-        req.ip.includes("localhost"))
-    ) {
-      return true;
-    }
-    return false;
-  },
 });
 
+// FIXED CORS Configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    const allowedOrigins = [
-      "https://task-manage-blue.vercel.app",
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "http://localhost:5173",
-      // Add any other domains you need
-    ];
-
-    // FIX: Use includes() instead of indexOf() or check indexOf() !== -1
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log("Blocked by CORS:", origin);
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: [
+    "https://task-manage-blue.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
@@ -85,17 +64,11 @@ const corsOptions = {
     "X-Requested-With",
     "Accept",
     "Origin",
-    "Access-Control-Request-Method",
-    "Access-Control-Request-Headers",
   ],
-  exposedHeaders: ["Authorization"],
-  optionsSuccessStatus: 200, // For legacy browser support
-  preflightContinue: false,
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly
 app.options("*", cors(corsOptions));
 
 // Body parsing middleware
@@ -106,7 +79,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   console.log("Origin:", req.get("Origin"));
-  console.log("User-Agent:", req.get("User-Agent"));
+  console.log("Real IP:", req.ip); // This will now work correctly with trust proxy
   if (req.body && Object.keys(req.body).length > 0) {
     console.log("Request body:", JSON.stringify(req.body, null, 2));
   }
@@ -150,6 +123,7 @@ app.get("/health", (req, res) => {
     database:
       mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     cors: "enabled",
+    trustProxy: app.get("trust proxy"), // Show trust proxy status
   });
 });
 
@@ -325,12 +299,28 @@ process.on("SIGTERM", () => {
   });
 });
 
-// ===== CRITICAL: PROPER SERVER STARTUP FOR RENDER =====
+// Keep-alive for free tier
+if (process.env.NODE_ENV === "production") {
+  const keepAlive = () => {
+    console.log("🏓 Self-ping to stay awake");
+    fetch("https://taskmanage-ux5k.onrender.com/health")
+      .then(() => console.log("✅ Self-ping successful"))
+      .catch((err) => console.log("❌ Self-ping failed:", err.message));
+  };
+
+  setTimeout(() => {
+    keepAlive();
+    setInterval(keepAlive, 14 * 60 * 1000); // Every 14 minutes
+  }, 5 * 60 * 1000); // Start after 5 minutes
+}
+
+// Server startup
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}/`);
   console.log(`📊 Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`🔐 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`🌐 CORS enabled for: https://task-manage-blue.vercel.app`);
+  console.log(`🔒 Trust proxy: ${app.get("trust proxy")}`);
   console.log(
     `🚦 Auth rate limit: ${
       process.env.NODE_ENV === "production" ? 20 : 100
@@ -340,7 +330,6 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🧪 Auth test: http://0.0.0.0:${PORT}/api/auth/test`);
   console.log(`🧪 Tasks test: http://0.0.0.0:${PORT}/api/tasks/test`);
 
-  // Log server address info
   const address = server.address();
   console.log("🔧 Server address info:", address);
 });
