@@ -56,7 +56,6 @@ const authLimiter = rateLimit({
   },
 });
 
-// CORS Middleware - FIXED VERSION
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -70,7 +69,8 @@ const corsOptions = {
       // Add any other domains you need
     ];
 
-    if (allowedOrigins.indexOf(origin)) {
+    // FIX: Use includes() instead of indexOf() or check indexOf() !== -1
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.log("Blocked by CORS:", origin);
