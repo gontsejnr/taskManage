@@ -25,6 +25,11 @@ const TaskSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  user: {
+    type: mongoose.Schema.ObjectId,
+    ref: "User",
+    required: [true, "Task must belong to a user"],
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -40,5 +45,8 @@ TaskSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// Create compound index for user and createdAt for better query performance
+TaskSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Task", TaskSchema);
