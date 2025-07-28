@@ -13,7 +13,7 @@ const {
   getMe,
   updateProfile,
   changePassword,
-} = require("../controllers/authController");
+} = require("../controller/authController");
 
 // Test route to verify auth routes are loaded
 router.get("/test", (req, res) => {

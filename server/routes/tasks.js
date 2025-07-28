@@ -6,7 +6,7 @@ const {
   createTask,
   updateTask,
   deleteTask,
-} = require("../controllers/taskController");
+} = require("../controller/taskController");
 
 // Test route to verify task routes are loaded
 router.get("/test", (req, res) => {
