@@ -66,10 +66,11 @@ const corsOptions = {
       "https://task-manage-blue.vercel.app",
       "http://localhost:3000",
       "http://127.0.0.1:3000",
+      "http://localhost:5173",
       // Add any other domains you need
     ];
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.indexOf(origin)) {
       callback(null, true);
     } else {
       console.log("Blocked by CORS:", origin);
@@ -84,8 +85,12 @@ const corsOptions = {
     "X-Requested-With",
     "Accept",
     "Origin",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers",
   ],
+  exposedHeaders: ["Authorization"],
   optionsSuccessStatus: 200, // For legacy browser support
+  preflightContinue: false,
 };
 
 app.use(cors(corsOptions));

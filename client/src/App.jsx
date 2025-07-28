@@ -26,9 +26,9 @@ const MainApp = () => {
 
   // Use localhost for development, production URL for deployment
   const API_URL =
-    window.location.hostname === "localhost"
-      ? "http://localhost:5001/api/tasks"
-      : "https://taskmanage-ux5k.onrender.com/api/tasks";
+    //  window.location.hostname === "localhost"
+    //  ? "http://localhost:5001/api/tasks" :
+    "https://taskmanage-ux5k.onrender.com/api/tasks";
 
   // Handle 401 errors by logging out the user
   const handle401Error = () => {
