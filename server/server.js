@@ -1,3 +1,5 @@
+// Replace the port configuration section in your server.js with this:
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -7,8 +9,19 @@ const path = require("path");
 require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 5001;
 
+// ===== CRITICAL: PROPER PORT CONFIGURATION FOR RENDER =====
+const PORT = process.env.PORT || 5001;
+console.log("🔧 Environment PORT:", process.env.PORT);
+console.log("🔧 Using PORT:", PORT);
+
+// Validate that PORT is a number
+if (isNaN(PORT)) {
+  console.error("❌ Invalid PORT value:", PORT);
+  process.exit(1);
+}
+
+// ===== REST OF YOUR MIDDLEWARE AND ROUTES =====
 // Security Middleware
 app.use(helmet());
 
@@ -78,6 +91,8 @@ app.get("/", (req, res) => {
     version: "2.0.0",
     features: ["Authentication", "Task Management", "User Profiles"],
     environment: process.env.NODE_ENV || "development",
+    port: PORT,
+    timestamp: new Date().toISOString(),
     endpoints: {
       health: "/health",
       auth: "/api/auth/*",
@@ -95,6 +110,7 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || "development",
+    port: PORT,
     database:
       mongoose.connection.readyState === 1 ? "connected" : "disconnected",
   });
@@ -125,31 +141,21 @@ app.get("/api", (req, res) => {
   });
 });
 
-// Rate limit info endpoint for debugging
-app.get("/api/rate-limit-info", (req, res) => {
-  res.json({
-    message: "Rate limit information",
-    ip: req.ip,
-    environment: process.env.NODE_ENV || "development",
-    authLimitConfig: {
-      windowMs: "15 minutes",
-      max: process.env.NODE_ENV === "production" ? 10 : 50,
-      skipLocalhost: process.env.NODE_ENV !== "production",
-    },
-  });
-});
+// Environment variables validation
+const requiredEnvVars = ["MONGODB_URI", "JWT_SECRET"];
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 
-// Routes - with better error handling
+if (missingEnvVars.length > 0) {
+  console.error(
+    `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`
+  );
+  process.exit(1);
+}
+
+// Routes loading (add your existing route loading logic here)
 console.log("Loading routes...");
 
 try {
-  // Check if route files exist
-  const authRoutePath = path.join(__dirname, "routes", "auth.js");
-  const taskRoutePath = path.join(__dirname, "routes", "tasks.js");
-
-  console.log("Auth route path:", authRoutePath);
-  console.log("Task route path:", taskRoutePath);
-
   // Load routes
   const authRoutes = require("./routes/auth");
   const taskRoutes = require("./routes/tasks");
@@ -244,17 +250,6 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Environment variables validation
-const requiredEnvVars = ["MONGODB_URI", "JWT_SECRET"];
-const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
-
-if (missingEnvVars.length > 0) {
-  console.error(
-    `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`
-  );
-  process.exit(1);
-}
-
 // Connect to MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -280,17 +275,41 @@ process.on("SIGTERM", () => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}/`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+// ===== CRITICAL: PROPER SERVER STARTUP FOR RENDER =====
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://0.0.0.0:${PORT}/`);
+  console.log(`📊 Health check: http://0.0.0.0:${PORT}/health`);
   console.log(`🔐 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
     `🚦 Auth rate limit: ${
       process.env.NODE_ENV === "production" ? 10 : 50
     } requests per 15 minutes`
   );
-  console.log(`📋 API info: http://localhost:${PORT}/api`);
-  console.log(`🧪 Auth test: http://localhost:${PORT}/api/auth/test`);
-  console.log(`🧪 Tasks test: http://localhost:${PORT}/api/tasks/test`);
+  console.log(`📋 API info: http://0.0.0.0:${PORT}/api`);
+  console.log(`🧪 Auth test: http://0.0.0.0:${PORT}/api/auth/test`);
+  console.log(`🧪 Tasks test: http://0.0.0.0:${PORT}/api/tasks/test`);
+
+  // Log server address info
+  const address = server.address();
+  console.log("🔧 Server address info:", address);
+});
+
+// Handle server startup errors
+server.on("error", (err) => {
+  console.error("❌ Server startup error:", err);
+  if (err.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} is already in use`);
+  }
+  process.exit(1);
+});
+
+// Ensure server closes properly
+process.on("SIGINT", () => {
+  console.log("SIGINT received. Shutting down gracefully...");
+  server.close(() => {
+    mongoose.connection.close(() => {
+      console.log("Server and database connections closed.");
+      process.exit(0);
+    });
+  });
 });
