@@ -62,12 +62,10 @@ const authLimiter = rateLimit({
 // CORS Middleware
 app.use(
   cors({
-    origin: [
-      "https://taskmanage-ux5k.onrender.com",
-      "http://localhost:3000",
-      "http://localhost:5173",
-    ],
-    credentials: true,
+    origin: ["https://task-manage-blue.vercel.app", "http://localhost:3000"], // Add your frontend URLs
+    credentials: true, // If you need to send cookies
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
