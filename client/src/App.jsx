@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "../src/context/AuthProvider";
+import { useAuth } from "../src/hooks/useAuth";
 import TaskForm from "./components/TaskForm";
 import TaskList from "./components/TaskList";
 import ErrorBoundary from "./components/ErrorBoundary";

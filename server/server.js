@@ -1,3 +1,5 @@
+// Make sure your server.js has these configurations for Render
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -6,7 +8,12 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const app = express();
+
+// IMPORTANT: Use PORT from environment (Render provides this)
 const PORT = process.env.PORT || 5001;
+
+// IMPORTANT: Bind to 0.0.0.0 for Render (not just localhost)
+const HOST = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";
 
 // Security Middleware
 app.use(helmet());
@@ -30,28 +37,32 @@ const authLimiter = rateLimit({
   },
 });
 
-// CORS Middleware
+// CORS Middleware - IMPORTANT: Update for production
 app.use(
   cors({
-    origin: "https://task-manage-blue.vercel.app",
+    origin: [
+      "https://task-manage-blue.vercel.app", // Your production frontend
+      "http://localhost:3000", // Local development
+      "http://localhost:5173", // Vite dev server
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-//const cors = require("cors");
-
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Basic route for testing
+// IMPORTANT: Add health check endpoint BEFORE other routes
 app.get("/", (req, res) => {
   res.json({
     message: "Task Management API is running!",
     version: "2.0.0",
     features: ["Authentication", "Task Management", "User Profiles"],
+    status: "healthy",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -61,6 +72,16 @@ app.get("/health", (req, res) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+    port: PORT,
+  });
+});
+
+// IMPORTANT: Add a test endpoint to verify API is working
+app.get("/api/test", (req, res) => {
+  res.json({
+    message: "API is working correctly",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -73,11 +94,19 @@ try {
   process.exit(1);
 }
 
-// 404 handler - FIXED: Remove the "*" which was causing the path-to-regexp error
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     message: "Route not found",
     path: req.originalUrl,
+    availableRoutes: [
+      "GET /",
+      "GET /health",
+      "GET /api/test",
+      "POST /api/auth/login",
+      "POST /api/auth/register",
+      "GET /api/tasks",
+    ],
   });
 });
 
@@ -154,8 +183,31 @@ process.on("SIGTERM", () => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}/`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+process.on("SIGINT", () => {
+  console.log("SIGINT received. Shutting down gracefully...");
+  mongoose.connection.close(() => {
+    console.log("MongoDB connection closed.");
+    process.exit(0);
+  });
+});
+
+// IMPORTANT: Listen on correct host and port for Render
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on ${HOST}:${PORT}`);
+  console.log(`📊 Health check: http://${HOST}:${PORT}/health`);
+  console.log(`🧪 Test endpoint: http://${HOST}:${PORT}/api/test`);
   console.log(`🔐 Environment: ${process.env.NODE_ENV || "development"}`);
+
+  // Log all environment variables (be careful with sensitive data)
+  console.log("Environment variables check:");
+  console.log("- NODE_ENV:", process.env.NODE_ENV || "not set");
+  console.log("- PORT:", process.env.PORT || "not set");
+  console.log(
+    "- MONGODB_URI:",
+    process.env.MONGODB_URI ? "✅ set" : "❌ missing"
+  );
+  console.log(
+    "- JWT_SECRET:",
+    process.env.JWT_SECRET ? "✅ set" : "❌ missing"
+  );
 });

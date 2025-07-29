@@ -1,28 +1,38 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+import { AuthContext } from "./AuthContext";
+import { API_CONFIG, testConnection } from "../config/api";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
+  const [connectionError, setConnectionError] = useState(null);
 
-  // Use localhost for development, production URL for deployment
-  const API_URL =
-    window.location.hostname === "localhost"
-      ? "http://localhost:5001/api"
-      : "https://taskmanage-ux5k.onrender.com/api";
+  const API_URL = API_CONFIG.BASE_URL;
 
   console.log("AuthContext - Using API_URL:", API_URL);
+  console.log(
+    "AuthContext - Environment:",
+    import.meta.env.MODE || process.env.NODE_ENV
+  );
+
+  // Test API connection on startup
+  useEffect(() => {
+    const checkConnection = async () => {
+      console.log("Testing API connection...");
+      const result = await testConnection();
+      if (!result.success) {
+        setConnectionError(`Cannot connect to API: ${result.error}`);
+        console.error("API connection test failed:", result.error);
+      } else {
+        setConnectionError(null);
+        console.log("API connection test passed");
+      }
+    };
+
+    checkConnection();
+  }, []);
 
   // Function to set axios authorization header
   const setAxiosAuthHeader = (authToken) => {
@@ -34,6 +44,12 @@ export const AuthProvider = ({ children }) => {
       console.log("AuthContext - Removed axios auth header");
     }
   };
+
+  // Set axios base URL
+  useEffect(() => {
+    axios.defaults.baseURL = API_URL;
+    console.log("AuthContext - Set axios base URL to:", API_URL);
+  }, [API_URL]);
 
   // Check if user is logged in on app load
   useEffect(() => {
@@ -53,15 +69,36 @@ export const AuthProvider = ({ children }) => {
 
         try {
           console.log("AuthContext - Verifying token with backend...");
-          const response = await axios.get(`${API_URL}/auth/me`);
+
+          // Add timeout and better error handling
+          const response = await axios.get("/api/auth/me", {
+            timeout: 10000, // 10 second timeout
+            headers: {
+              Authorization: `Bearer ${storedToken}`,
+            },
+          });
+
           console.log(
             "AuthContext - Token verification successful:",
             response.data
           );
           setUser(response.data.user);
+          setConnectionError(null);
         } catch (error) {
           console.error("AuthContext - Error verifying token:", error);
-          console.log("AuthContext - Removing invalid token");
+
+          if (error.code === "ECONNABORTED") {
+            setConnectionError(
+              "Request timeout - server may be slow to respond"
+            );
+          } else if (error.message === "Network Error") {
+            setConnectionError("Network error - check if server is running");
+          } else if (error.response?.status === 401) {
+            console.log("AuthContext - Token expired, removing");
+          } else {
+            setConnectionError(`API Error: ${error.message}`);
+          }
+
           // Token is invalid, remove it
           localStorage.removeItem("token");
           setToken(null);
@@ -76,8 +113,13 @@ export const AuthProvider = ({ children }) => {
       console.log("AuthContext - Authentication check complete");
     };
 
-    checkAuth();
-  }, [API_URL]);
+    // Only check auth if we don't have a connection error
+    if (!connectionError) {
+      checkAuth();
+    } else {
+      setLoading(false);
+    }
+  }, [API_URL, connectionError]);
 
   // Set up axios interceptor whenever token changes
   useEffect(() => {
@@ -92,10 +134,16 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthContext - Attempting login for:", email);
 
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        email,
-        password,
-      });
+      const response = await axios.post(
+        "/api/auth/login",
+        {
+          email,
+          password,
+        },
+        {
+          timeout: 10000, // 10 second timeout
+        }
+      );
 
       console.log("AuthContext - Login successful:", response.data);
 
@@ -106,15 +154,28 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       localStorage.setItem("token", newToken);
       setAxiosAuthHeader(newToken);
+      setConnectionError(null);
 
       console.log("AuthContext - Token and user data stored");
 
       return { success: true };
     } catch (error) {
       console.error("AuthContext - Login error:", error);
+
+      let errorMessage = "Login failed";
+
+      if (error.code === "ECONNABORTED") {
+        errorMessage = "Request timeout - server is not responding";
+      } else if (error.message === "Network Error") {
+        errorMessage =
+          "Cannot connect to server - please check your connection";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
       return {
         success: false,
-        message: error.response?.data?.message || "Login failed",
+        message: errorMessage,
       };
     }
   };
@@ -123,11 +184,17 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthContext - Attempting registration for:", email);
 
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, {
-        name,
-        email,
-        password,
-      });
+      const response = await axios.post(
+        "/api/auth/register",
+        {
+          name,
+          email,
+          password,
+        },
+        {
+          timeout: 10000, // 10 second timeout
+        }
+      );
 
       console.log("AuthContext - Registration successful:", response.data);
 
@@ -138,6 +205,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       localStorage.setItem("token", newToken);
       setAxiosAuthHeader(newToken);
+      setConnectionError(null);
 
       console.log(
         "AuthContext - Token and user data stored after registration"
@@ -149,13 +217,16 @@ export const AuthProvider = ({ children }) => {
 
       let errorMessage = "Registration failed";
 
-      if (error.response?.status === 429) {
+      if (error.code === "ECONNABORTED") {
+        errorMessage = "Request timeout - server is not responding";
+      } else if (error.message === "Network Error") {
+        errorMessage =
+          "Cannot connect to server - please check your connection";
+      } else if (error.response?.status === 429) {
         errorMessage =
           "Too many registration attempts. Please wait a few minutes before trying again.";
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
       }
 
       return {
@@ -180,7 +251,7 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthContext - Updating profile for:", email);
 
     try {
-      const response = await axios.put(`${API_URL}/auth/profile`, {
+      const response = await axios.put("/api/auth/profile", {
         name,
         email,
       });
@@ -201,7 +272,7 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthContext - Changing password");
 
     try {
-      await axios.put(`${API_URL}/auth/change-password`, {
+      await axios.put("/api/auth/change-password", {
         currentPassword,
         newPassword,
       });
@@ -221,6 +292,7 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     loading,
+    connectionError,
     login,
     register,
     logout,
@@ -234,6 +306,7 @@ export const AuthProvider = ({ children }) => {
     token: token ? "present" : "null",
     isAuthenticated: !!user && !!token,
     loading,
+    connectionError,
   });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
