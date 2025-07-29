@@ -1,207 +1,292 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import TaskForm from "./components/TaskForm";
 import TaskList from "./components/TaskList";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import Profile from "./components/Profile";
 
-// API base URL
-const API_URL = "https://taskmanage-ux5k.onrender.com/api/tasks";
-
-function App() {
+// Main App Component (wrapped by AuthProvider)
+const MainApp = () => {
+  const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [editingTask, setEditingTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [serverWaking, setServerWaking] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // 'login' or 'register'
+  const [showProfile, setShowProfile] = useState(false);
 
-  // Fetch tasks when component mounts
+  // Use localhost for development, production URL for deployment
+  const API_URL =
+    window.location.hostname === "localhost"
+      ? "http://localhost:5001/api/tasks"
+      : "https://taskmanage-ux5k.onrender.com/api/tasks";
+
+  console.log("MainApp - Using API_URL:", API_URL);
+  console.log("MainApp - Auth state:", {
+    isAuthenticated,
+    user: user ? "present" : "null",
+  });
+
+  // Handle 401 errors by logging out the user
+  const handle401Error = () => {
+    console.log("MainApp - Handling 401 error, logging out user");
+    logout();
+    setError("Your session has expired. Please log in again.");
+  };
+
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    console.log("MainApp - useEffect triggered:", {
+      isAuthenticated,
+      hasToken: !!user,
+      authLoading,
+    });
 
-  // Enhanced fetch with retry logic for cold starts
-  const fetchTasks = async (retryCount = 0) => {
-    const maxRetries = 3;
+    // Only fetch tasks if user is authenticated and auth loading is complete
+    if (isAuthenticated && !authLoading) {
+      // Add a small delay to ensure axios header is set
+      const timer = setTimeout(() => {
+        fetchTasks();
+      }, 100);
+
+      return () => clearTimeout(timer);
+    } else {
+      console.log(
+        "MainApp - User not authenticated or still loading, clearing tasks"
+      );
+      setTasks([]);
+      setLoading(false);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // Fetch all tasks from the backend
+  const fetchTasks = async () => {
+    console.log("MainApp - Fetching tasks...");
 
     try {
       setLoading(true);
       setError("");
 
-      // If this is a retry, show server waking message
-      if (retryCount > 0) {
-        setServerWaking(true);
-        setError("Server is waking up, please wait...");
-      }
+      // Check if we have authorization header
+      const authHeader = axios.defaults.headers.common["Authorization"];
+      console.log(
+        "MainApp - Authorization header:",
+        authHeader ? "present" : "missing"
+      );
 
-      const response = await axios.get(API_URL, {
-        timeout: retryCount > 0 ? 60000 : 10000, // Longer timeout for retries
-      });
+      const response = await axios.get(API_URL);
+      console.log("MainApp - Fetch tasks successful:", response.data);
 
-      // Success
+      // Ensure we always set an array
       if (Array.isArray(response.data)) {
         setTasks(response.data);
-        setServerWaking(false);
-        setError("");
       } else {
-        console.warn("API returned non-array data:", response.data);
+        console.warn("MainApp - API returned non-array data:", response.data);
         setTasks([]);
         setError("Invalid data format received from server");
       }
     } catch (error) {
-      console.error("Error fetching tasks:", error);
+      console.error("MainApp - Error fetching tasks:", error);
+      console.error("MainApp - Error response:", error.response);
 
-      // Check if it's a network/timeout error and we haven't exhausted retries
-      if (
-        (error.code === "ECONNABORTED" || error.code === "ERR_NETWORK") &&
-        retryCount < maxRetries
-      ) {
-        console.log(`Retry attempt ${retryCount + 1}/${maxRetries}`);
-        setError(
-          `Server is starting up... Attempt ${retryCount + 1}/${maxRetries}`
-        );
-
-        // Wait before retry (longer each time)
-        const delay = (retryCount + 1) * 10000; // 10s, 20s, 30s
-        setTimeout(() => {
-          fetchTasks(retryCount + 1);
-        }, delay);
-
-        return; // Don't set loading to false yet
-      }
-
-      // All retries failed or different error
       setTasks([]);
-      setServerWaking(false);
 
-      if (error.code === "ERR_NETWORK") {
-        setError(
-          "Unable to connect to server. The server might be sleeping (Render free tier). Please try refreshing the page in a few minutes."
-        );
-      } else if (error.code === "ECONNABORTED") {
-        setError(
-          "Request timed out. The server might be starting up. Please try again."
-        );
+      if (error.response?.status === 401) {
+        console.log("MainApp - 401 error detected");
+        handle401Error();
       } else {
-        setError(
-          "Failed to fetch tasks. Please check your connection and try again."
-        );
+        setError("Failed to fetch tasks. Please try again.");
       }
     } finally {
-      if (retryCount >= maxRetries || !error.includes("starting up")) {
-        setLoading(false);
-      }
-    }
-  };
-
-  // Add a manual retry function
-  const retryConnection = () => {
-    setTasks([]);
-    setError("");
-    setLoading(true);
-    setServerWaking(false);
-    fetchTasks();
-  };
-
-  // Enhanced request function with retry logic
-  const makeRequest = async (requestFn, errorMessage) => {
-    try {
-      setError("");
-      return await requestFn();
-    } catch (error) {
-      console.error(errorMessage, error);
-
-      if (error.code === "ERR_NETWORK") {
-        setError("Server connection lost. Please try again in a moment.");
-      } else {
-        setError(`${errorMessage} Please try again.`);
-      }
-      throw error;
+      setLoading(false);
     }
   };
 
   // Add a new task
   const addTask = async (taskData) => {
-    await makeRequest(async () => {
+    console.log("MainApp - Adding task:", taskData);
+
+    try {
+      setError("");
       const response = await axios.post(API_URL, taskData);
+      console.log("MainApp - Add task successful:", response.data);
+
       if (Array.isArray(tasks)) {
         setTasks([response.data, ...tasks]);
       } else {
         setTasks([response.data]);
       }
-    }, "Failed to add task.");
+    } catch (error) {
+      console.error("MainApp - Error adding task:", error);
+      if (error.response?.status === 401) {
+        handle401Error();
+      } else {
+        setError("Failed to add task. Please try again.");
+      }
+    }
   };
 
   // Update an existing task
   const updateTask = async (id, taskData) => {
-    await makeRequest(async () => {
+    console.log("MainApp - Updating task:", id, taskData);
+
+    try {
+      setError("");
       const response = await axios.put(`${API_URL}/${id}`, taskData);
+      console.log("MainApp - Update task successful:", response.data);
+
       if (Array.isArray(tasks)) {
         setTasks(tasks.map((task) => (task._id === id ? response.data : task)));
       }
       setEditingTask(null);
-    }, "Failed to update task.");
+    } catch (error) {
+      console.error("MainApp - Error updating task:", error);
+      if (error.response?.status === 401) {
+        handle401Error();
+      } else {
+        setError("Failed to update task. Please try again.");
+      }
+    }
   };
 
   // Delete a task
   const deleteTask = async (id) => {
     if (window.confirm("Are you sure you want to delete this task?")) {
-      await makeRequest(async () => {
+      console.log("MainApp - Deleting task:", id);
+
+      try {
+        setError("");
         await axios.delete(`${API_URL}/${id}`);
+        console.log("MainApp - Delete task successful");
+
         if (Array.isArray(tasks)) {
           setTasks(tasks.filter((task) => task._id !== id));
         }
-      }, "Failed to delete task.");
+      } catch (error) {
+        console.error("MainApp - Error deleting task:", error);
+        if (error.response?.status === 401) {
+          handle401Error();
+        } else {
+          setError("Failed to delete task. Please try again.");
+        }
+      }
     }
   };
 
   // Toggle task completion status
-  const toggleComplete = async (id, completed) => {
-    await makeRequest(async () => {
+  const toggleComplete = async (id) => {
+    const task = tasks.find((t) => t._id === id);
+    if (!task) return;
+
+    console.log("MainApp - Toggling task completion:", id, !task.completed);
+
+    try {
+      setError("");
       const response = await axios.put(`${API_URL}/${id}`, {
-        completed: !completed,
+        completed: !task.completed,
       });
+      console.log("MainApp - Toggle completion successful:", response.data);
+
       if (Array.isArray(tasks)) {
         setTasks(tasks.map((task) => (task._id === id ? response.data : task)));
       }
-    }, "Failed to update task status.");
+    } catch (error) {
+      console.error("MainApp - Error updating task:", error);
+      if (error.response?.status === 401) {
+        handle401Error();
+      } else {
+        setError("Failed to update task status. Please try again.");
+      }
+    }
   };
 
+  // Show loading screen while auth is being determined
+  if (authLoading) {
+    console.log("MainApp - Showing auth loading screen");
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth forms if not authenticated
+  if (!isAuthenticated) {
+    console.log("MainApp - Showing auth forms");
+    return (
+      <>
+        {authMode === "login" ? (
+          <Login onToggleMode={() => setAuthMode("register")} />
+        ) : (
+          <Register onToggleMode={() => setAuthMode("login")} />
+        )}
+      </>
+    );
+  }
+
+  console.log("MainApp - Rendering main app for authenticated user");
+
+  // Main authenticated app
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Manage Your Tasks
-          </h1>
-          <p className="text-gray-600">Stay organized and get things done!</p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Welcome back, {user?.name}! 👋
+            </h1>
+            <p className="text-gray-600">
+              Manage your tasks and stay organized
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowProfile(true)}
+              className="flex items-center space-x-2 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 transition duration-200"
+            >
+              <span>👤</span>
+              <span>Profile</span>
+            </button>
+
+            <button
+              onClick={fetchTasks}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition duration-200 disabled:opacity-50"
+            >
+              <span>🔄</span>
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
-        {/* Server Status Notice */}
-        {serverWaking && (
-          <div className="mb-6 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            <div className="flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2"></div>
-              Server is waking up from sleep mode. This may take 30-60
-              seconds...
-            </div>
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center justify-between">
+            <span>{error}</span>
+            <button
+              onClick={() => setError("")}
+              className="text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Error Message */}
-        {error && !serverWaking && (
-          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <div className="flex items-center justify-between">
-              <span>{error}</span>
-              {error.includes("Unable to connect") && (
-                <button
-                  onClick={retryConnection}
-                  className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                >
-                  Retry
-                </button>
-              )}
-            </div>
+        {/* Debug Info (remove in production) */}
+        {window.location.hostname === "localhost" && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded text-sm">
+            <strong>Debug Info:</strong> API URL: {API_URL} | Auth Header:{" "}
+            {axios.defaults.headers.common["Authorization"]
+              ? "Present"
+              : "Missing"}{" "}
+            | Tasks: {tasks.length}
           </div>
         )}
 
@@ -222,14 +307,7 @@ function App() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">
-                    {serverWaking ? "Waking up server..." : "Loading tasks..."}
-                  </p>
-                  {serverWaking && (
-                    <p className="mt-2 text-sm text-gray-500">
-                      Free tier servers sleep after inactivity. Please wait...
-                    </p>
-                  )}
+                  <p className="mt-4 text-gray-600">Loading tasks...</p>
                 </div>
               </div>
             ) : (
@@ -245,13 +323,29 @@ function App() {
           </div>
         </div>
 
+        {/* Profile Modal */}
+        {showProfile && <Profile onClose={() => setShowProfile(false)} />}
+
         {/* Footer */}
         <div className="text-center mt-12 text-gray-500 text-sm">
-          <p>Built with MERN Stack. ©Gontse Maepa 2025</p>
-          <p className="mt-1"></p>
+          <p>Built with MERN Stack & JWT Authentication. ©Gontse Maepa 2025</p>
+          {window.location.hostname === "localhost" && (
+            <p className="mt-2 text-xs text-blue-600">
+              Development Mode - Using localhost API
+            </p>
+          )}
         </div>
       </div>
     </div>
+  );
+};
+
+// Root App Component with AuthProvider
+function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
 
