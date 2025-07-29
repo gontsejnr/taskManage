@@ -1,5 +1,4 @@
 export const API_CONFIG = {
-  // Better way to determine API URL
   BASE_URL:
     import.meta.env.VITE_API_URL ||
     (import.meta.env.DEV
@@ -13,7 +12,6 @@ export const API_CONFIG = {
   },
 };
 
-// Test function to check API connectivity
 export const testConnection = async () => {
   try {
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/test`);

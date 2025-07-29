@@ -9,10 +9,8 @@ require("dotenv").config();
 
 const app = express();
 
-// IMPORTANT: Use PORT from environment (Render provides this)
 const PORT = process.env.PORT || 5001;
 
-// IMPORTANT: Bind to 0.0.0.0 for Render (not just localhost)
 const HOST = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";
 
 // Security Middleware
@@ -194,20 +192,5 @@ process.on("SIGINT", () => {
 // IMPORTANT: Listen on correct host and port for Render
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Server running on ${HOST}:${PORT}`);
-  console.log(`📊 Health check: http://${HOST}:${PORT}/health`);
-  console.log(`🧪 Test endpoint: http://${HOST}:${PORT}/api/test`);
   console.log(`🔐 Environment: ${process.env.NODE_ENV || "development"}`);
-
-  // Log all environment variables (be careful with sensitive data)
-  console.log("Environment variables check:");
-  console.log("- NODE_ENV:", process.env.NODE_ENV || "not set");
-  console.log("- PORT:", process.env.PORT || "not set");
-  console.log(
-    "- MONGODB_URI:",
-    process.env.MONGODB_URI ? "✅ set" : "❌ missing"
-  );
-  console.log(
-    "- JWT_SECRET:",
-    process.env.JWT_SECRET ? "✅ set" : "❌ missing"
-  );
 });

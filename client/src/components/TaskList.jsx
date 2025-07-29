@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 
-// Temporary TaskItem component to isolate the issue
 const TaskItem = ({ task, index, onEdit, onDelete, onToggleComplete }) => {
   console.log("TaskItem received props:", { task, index });
 
@@ -165,15 +164,6 @@ const TaskList = ({ tasks = [], onEdit, onDelete, onToggleComplete }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md">
-      {/* Debug Info
-      <div className="p-4 bg-yellow-50 border-b border-yellow-200">
-        <div className="text-sm text-yellow-800">
-          <strong>Debug Info:</strong> tasks type: {typeof tasks}, isArray:{" "}
-          {Array.isArray(tasks).toString()}, length:{" "}
-          {Array.isArray(tasks) ? tasks.length : "N/A"}
-        </div>
-      </div> */}
-
       {/* Header with Statistics */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
