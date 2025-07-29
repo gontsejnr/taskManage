@@ -40,7 +40,7 @@ app.use(
   })
 );
 
-const cors = require("cors");
+//const cors = require("cors");
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
