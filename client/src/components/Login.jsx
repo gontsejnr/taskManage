@@ -157,18 +157,6 @@ const Login = ({ onToggleMode }) => {
             </p>
           </div>
         </form>
-
-        <div className="mt-6">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">
-              💡 Demo Credentials:
-            </h3>
-            <p className="text-xs text-blue-700">
-              You can create a new account or use the registration form to get
-              started.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
