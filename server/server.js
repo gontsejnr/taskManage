@@ -9,7 +9,13 @@ const PORT = process.env.PORT || 5001;
 // Middleware
 app.use(
   cors({
-    origin: ["https://taskmanage-ux5k.onrender.com"],
+    origin:
+      process.env.NODE_ENV === "production"
+        ? [
+            "https://taskmanage-ux5k.onrender.com",
+            "https://task-manage-blue.vercel.app", // Your Vercel domain
+          ]
+        : true, // Allow all origins in development
     credentials: true,
   })
 );
