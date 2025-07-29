@@ -18,9 +18,9 @@ export const AuthProvider = ({ children }) => {
 
   // Use localhost for development, production URL for deployment
   const API_URL =
-    // window.location.hostname === "localhost"
-    //  ? "http://localhost:5001/api":
-    "https://taskmanage-ux5k.onrender.com/api";
+    window.location.hostname === "localhost"
+      ? "http://localhost:5001/api"
+      : "https://taskmanage-ux5k.onrender.com/api";
 
   console.log("AuthContext - Using API_URL:", API_URL);
 
