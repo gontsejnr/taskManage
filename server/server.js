@@ -31,13 +31,22 @@ const authLimiter = rateLimit({
 });
 
 // CORS Middleware
+// app.use(
+//   cors({
+//     origin: [
+//       "https://taskmanage-ux5k.onrender.com",
+//       "http://localhost:3000", // Add localhost for development
+//       "http://localhost:5173", // Add Vite default port
+//     ],
+//     credentials: true,
+//   })
+// );
+
+const cors = require("cors");
+
 app.use(
   cors({
-    origin: [
-      "https://taskmanage-ux5k.onrender.com",
-      "http://localhost:3000", // Add localhost for development
-      "http://localhost:5173", // Add Vite default port
-    ],
+    origin: ["https://task-manage-blue.vercel.app"],
     credentials: true,
   })
 );
